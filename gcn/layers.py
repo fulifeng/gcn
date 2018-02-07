@@ -104,6 +104,8 @@ class Dense(Layer):
         with tf.variable_scope(self.name + '_vars'):
             self.vars['weights'] = glorot([input_dim, output_dim],
                                           name='weights')
+            # self.vars['weights'] = zeros([input_dim, output_dim],
+            #                               name='weights')
             if self.bias:
                 self.vars['bias'] = zeros([output_dim], name='bias')
 
@@ -148,7 +150,8 @@ class GraphConvolution(Layer):
         self.bias = bias
 
         # helper variable for sparse dropout
-        self.num_features_nonzero = placeholders['num_features_nonzero']
+        # self.num_features_nonzero = placeholders['num_features_nonzero']
+        self.num_features_nonzero = 0
 
         with tf.variable_scope(self.name + '_vars'):
             for i in range(len(self.support)):
@@ -167,9 +170,11 @@ class GraphConvolution(Layer):
         if self.sparse_inputs:
             x = sparse_dropout(x, 1-self.dropout, self.num_features_nonzero)
         else:
+            # print('sparse input flag set as False')
             x = tf.nn.dropout(x, 1-self.dropout)
 
         # convolve
+        # print('sparse flag:', self.sparse_inputs)
         supports = list()
         for i in range(len(self.support)):
             if not self.featureless:
@@ -177,7 +182,8 @@ class GraphConvolution(Layer):
                               sparse=self.sparse_inputs)
             else:
                 pre_sup = self.vars['weights_' + str(i)]
-            support = dot(self.support[i], pre_sup, sparse=True)
+            # support = dot(self.support[i], pre_sup, sparse=True)
+            support = dot(self.support[i], pre_sup, sparse=self.sparse_inputs)
             supports.append(support)
         output = tf.add_n(supports)
 

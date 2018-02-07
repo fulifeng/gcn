@@ -26,9 +26,11 @@ class Model(object):
 
         self.inputs = None
         self.outputs = None
+        self.embeddings = None
 
         self.loss = 0
         self.accuracy = 0
+        # self.mse = 0
         self.optimizer = None
         self.opt_op = None
 
@@ -46,10 +48,12 @@ class Model(object):
             hidden = layer(self.activations[-1])
             self.activations.append(hidden)
         self.outputs = self.activations[-1]
+        self.embeddings = self.activations[1]
 
         # Store model variables for easy access
         variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
         self.vars = {var.name: var for var in variables}
+        # self.embeddings = self.vars
 
         # Build metrics
         self._loss()
@@ -137,7 +141,11 @@ class GCN(Model):
         self.input_dim = input_dim
         # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
         self.output_dim = placeholders['labels'].get_shape().as_list()[1]
+        # print('output dimension:', self.output_dim)
         self.placeholders = placeholders
+        # print('learning rate:', FLAGS.learning_rate)
+        # print('weight decay:', FLAGS.weight_decay)
+        # print('hidden1:', FLAGS.hidden1)
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
 
@@ -148,13 +156,17 @@ class GCN(Model):
         for var in self.layers[0].vars.values():
             self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
 
-        # Cross entropy error
-        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-                                                  self.placeholders['labels_mask'])
-
+        # # Cross entropy error
+        # self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
+        #                                           self.placeholders['labels_mask'])
+        mae = masked_mse(self.outputs, self.placeholders['labels'],
+                         self.placeholders['labels_mask'])
+        self.loss += mae
     def _accuracy(self):
-        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-                                        self.placeholders['labels_mask'])
+        # self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
+        #                                 self.placeholders['labels_mask'])
+        self.accuracy = masked_mse(self.outputs, self.placeholders['labels'],
+                                   self.placeholders['labels_mask'])
 
     def _build(self):
 
@@ -162,14 +174,17 @@ class GCN(Model):
                                             output_dim=FLAGS.hidden1,
                                             placeholders=self.placeholders,
                                             act=tf.nn.relu,
+                                            # act=tf.sigmoid,
                                             dropout=True,
-                                            sparse_inputs=True,
+                                            # sparse_inputs=True,
+                                            sparse_inputs=False,
                                             logging=self.logging))
 
         self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
                                             output_dim=self.output_dim,
                                             placeholders=self.placeholders,
                                             act=lambda x: x,
+                                            # act=tf.sigmoid,
                                             dropout=True,
                                             logging=self.logging))
 
